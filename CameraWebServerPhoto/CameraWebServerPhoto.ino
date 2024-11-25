@@ -37,9 +37,9 @@
 // ===========================
 // Enter your WiFi credentials
 // ===========================
-const char *ssid = "NET_2G57CD11";
-const char *password = "3257CD11";
-const char *serverUrl = "http://192.168.0.16:5000/upload";
+const char *ssid = "Thiago";
+const char *password = "12345678";
+const char *serverUrl = "http://192.168.110.80:5000/upload";
 
 void sendPhoto() {
   camera_fb_t *fb = esp_camera_fb_get();
