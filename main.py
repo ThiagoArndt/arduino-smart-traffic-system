@@ -36,9 +36,9 @@ current_car_count = 0
 
 # Pinos do Arduino
 if arduino_connected:
-    red_led = board.get_pin('d:4:o')  # LED vermelho no pino digital 4
-    yellow_led = board.get_pin('d:5:o')  # LED amarelo no pino digital 5
-    green_led = board.get_pin('d:2:o')  # LED verde no pino digital 2
+    red_led = board.get_pin('d:13:o')  # LED vermelho no pino digital 4
+    yellow_led = board.get_pin('d:12:o')  # LED amarelo no pino digital 5
+    green_led = board.get_pin('d:14:o')  # LED verde no pino digital 2
     pedestrian_button = board.get_pin('d:23:i')  # Botão de pedestre no pino digital 23
 
 def set_semaphore_lights(state):

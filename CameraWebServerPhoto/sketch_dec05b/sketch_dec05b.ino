@@ -1,9 +1,16 @@
 #include <Arduino.h>
 
-// Define os pinos para os LEDs e botão de pedestre
-const int redLedPin = 4;
-const int yellowLedPin = 5;  // Alterado de 0 para 5
-const int greenLedPin = 2;
+// Define os pinos para os LEDs
+const int redLedPin = 13;
+const int yellowLedPin = 12;
+const int greenLedPin = 14;
+
+// Duração de cada estado do semáforo em milissegundos
+const int redDuration = 5000;    // 5 segundos para o vermelho
+const int yellowDuration = 2000; // 2 segundos para o amarelo
+const int greenDuration = 5000;  // 5 segundos para o verde
+
+// Pino para o botão de pedestre
 const int pedestrianSwitchPin = 23;
 
 void setup() {
@@ -17,36 +24,46 @@ void setup() {
 
   // Inicia a comunicação serial
   Serial.begin(9600);
+  Serial.println("Semáforo iniciado.");
 }
 
 void loop() {
-  // Verifica se há dados disponíveis na porta serial
-  if (Serial.available() > 0) {
-    // Lê o comando recebido
-    char command = Serial.read();
+  // Loop infinito para alternar as cores do semáforo
 
-    // Desliga todos os LEDs inicialmente
-    digitalWrite(redLedPin, LOW);
-    digitalWrite(yellowLedPin, LOW);
-    digitalWrite(greenLedPin, LOW);
+  // Estado: Vermelho
+  Serial.println("Estado: Vermelho");
+  digitalWrite(redLedPin, HIGH);
+  digitalWrite(yellowLedPin, LOW);
+  digitalWrite(greenLedPin, LOW);
+  delay(redDuration);
 
-    // Verifica qual comando foi recebido e acende o LED correspondente
-    if (command == 'R') {
-      digitalWrite(redLedPin, HIGH);     // Acende o LED vermelho
-    } else if (command == 'Y') {
-      digitalWrite(yellowLedPin, HIGH);  // Acende o LED amarelo
-    } else if (command == 'G') {
-      digitalWrite(greenLedPin, HIGH);   // Acende o LED verde
-    }
-  }
+  // Estado: Verde
+  Serial.println("Estado: Verde");
+  digitalWrite(redLedPin, LOW);
+  digitalWrite(yellowLedPin, LOW);
+  digitalWrite(greenLedPin, HIGH);
+  delay(greenDuration);
+
+  // Estado: Amarelo
+  Serial.println("Estado: Amarelo");
+  digitalWrite(redLedPin, LOW);
+  digitalWrite(yellowLedPin, HIGH);
+  digitalWrite(greenLedPin, LOW);
+  delay(yellowDuration);
 
   // Verifica se o botão de pedestre foi pressionado
   if (digitalRead(pedestrianSwitchPin) == LOW) {
-    // Envia um sinal para o Python
-    Serial.println("PedestrianButtonPressed");
+    Serial.println("Botão de pedestre pressionado. Voltando ao estado vermelho.");
+    digitalWrite(redLedPin, HIGH);
+    digitalWrite(yellowLedPin, LOW);
+    digitalWrite(greenLedPin, LOW);
+
     // Aguarda o botão ser liberado
     while (digitalRead(pedestrianSwitchPin) == LOW) {
       delay(10);
     }
+
+    // Permanece no estado vermelho por mais tempo para os pedestres
+    delay(5000);
   }
 }
