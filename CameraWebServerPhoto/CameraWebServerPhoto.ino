@@ -39,7 +39,7 @@
 // ===========================
 const char *ssid = "Thiago";
 const char *password = "12345678";
-const char *serverUrl = "http://192.168.110.80:5000/upload";
+const char *serverUrl = "http://192.168.220.80:5000/upload";
 
 void sendPhoto() {
   camera_fb_t *fb = esp_camera_fb_get();

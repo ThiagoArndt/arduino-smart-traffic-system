@@ -1,10 +1,11 @@
 import os
 import threading
 import time
-from flask import Flask, render_template_string, jsonify
+from flask import Flask, render_template_string, jsonify, request
 import cv2
 import numpy as np
 from pyfirmata import Arduino, util  # Usando PyFirmata para comunicação com o Arduino
+import requests
 
 app = Flask(__name__)
 
@@ -256,6 +257,43 @@ def dashboard():
     </body>
     </html>
     """)
+
+
+
+
+def determine_red_duration(car_count):
+    if car_count == 3:
+        return "5 seconds red"
+    elif 4 <= car_count <= 9:
+        return "12 seconds red"
+    elif car_count > 9:
+        return "20 seconds red"
+    return "No cars detected"
+
+def send_to_arduino(message):
+    arduino_url = "http://192.168.220.81"  # Replace with the correct Arduino URL
+    try:
+        response = requests.post(arduino_url, json={"message": message})
+        print("Message sent to Arduino:", message)
+        print("Response:", response.text)
+    except Exception as e:
+        print("Error sending message to Arduino:", e)
+
+@app.route('/upload', methods=['POST'])
+def upload_image():
+    if 'image/jpeg' in request.content_type:
+        image_data = np.frombuffer(request.data, np.uint8)
+        img = cv2.imdecode(image_data, cv2.IMREAD_COLOR)
+
+        car_count = detect_cars(img)
+        
+        duration_msg = determine_red_duration(car_count)
+        
+        send_to_arduino(duration_msg)
+
+        return duration_msg, 200
+
+    return "Invalid content type", 400
 
 if __name__ == "__main__":
     try:
