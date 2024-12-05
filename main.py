@@ -4,18 +4,16 @@ import time
 from flask import Flask, render_template_string, jsonify, request
 import cv2
 import numpy as np
-from pyfirmata import Arduino, util  # Usando PyFirmata para comunicação com o Arduino
+from pyfirmata2 import Arduino
 import requests
 
 app = Flask(__name__)
 
 # Configurações do Arduino
 try:
-    board = Arduino('COM8')  # Ajuste para a porta correta do seu Arduino
-    it = util.Iterator(board)
-    it.start()  # Inicia o iterador para lidar com os pinos
+    board = Arduino('COM8')  # Substitua pela porta correta do seu Arduino
     arduino_connected = True
-    print("Arduino conectado via PyFirmata.")
+    print("Arduino conectado via PyFirmata2.")
 except Exception as e:
     board = None
     arduino_connected = False
@@ -37,10 +35,9 @@ current_car_count = 0
 
 # Pinos do Arduino
 if arduino_connected:
-    red_led = board.get_pin('d:13:o')  # LED vermelho no pino digital 4
-    yellow_led = board.get_pin('d:12:o')  # LED amarelo no pino digital 5
-    green_led = board.get_pin('d:14:o')  # LED verde no pino digital 2
-    pedestrian_button = board.get_pin('d:23:i')  # Botão de pedestre no pino digital 23
+    red_led = board.digital[13]  # LED vermelho no pino digital 13
+    yellow_led = board.digital[12]  # LED amarelo no pino digital 12
+    green_led = board.digital[11]  # LED verde no pino digital 14
 
 def set_semaphore_lights(state):
     """Define os LEDs do semáforo."""
@@ -60,6 +57,7 @@ def set_semaphore_lights(state):
         red_led.write(1)
 
 def detect_cars(image):
+    """Detecta carros na imagem."""
     global total_cars_detected, current_car_count, durations
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     cars = car_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=3)
@@ -83,6 +81,7 @@ def detect_cars(image):
     return car_count
 
 def calculate_durations(car_count):
+    """Ajusta a duração do semáforo com base no número de carros detectados."""
     global durations
     if car_count <= 3:
         durations = {'Verde': 10, 'Amarelo': 3, 'Vermelho': 5}
@@ -93,20 +92,13 @@ def calculate_durations(car_count):
     print(f"Durações ajustadas com base em {car_count} carros detectados: {durations}")
 
 def update_semaphore_state():
+    """Atualiza o estado do semáforo com base nas durações."""
     global semaphore_state, state_start_time, durations, arduino_connected
     try:
-        set_semaphore_lights(semaphore_state)  # Define o estado inicial
+        set_semaphore_lights(semaphore_state)
         while True:
             elapsed_time = time.time() - state_start_time
             current_duration = durations[semaphore_state]
-
-            # Verifica o botão de pedestre
-            if arduino_connected and pedestrian_button.read():
-                print("Botão de pedestre pressionado")
-                semaphore_state = "Vermelho"
-                set_semaphore_lights("Vermelho")
-                time.sleep(5)  # Tempo para pedestre atravessar
-                state_start_time = time.time()
 
             if elapsed_time >= current_duration:
                 if semaphore_state == 'Verde':
@@ -117,7 +109,7 @@ def update_semaphore_state():
                     semaphore_state = 'Verde'
 
                 set_semaphore_lights(semaphore_state)
-                state_start_time = time.time()  # Reinicia o temporizador
+                state_start_time = time.time()
             time.sleep(0.1)
     except Exception as e:
         print(f"Erro na thread do semáforo: {e}")
@@ -128,6 +120,7 @@ print("Thread do semáforo iniciada.")
 
 @app.route('/dashboard_data')
 def dashboard_data():
+    """Retorna os dados do dashboard."""
     time_remaining = durations[semaphore_state] - (time.time() - state_start_time)
     if time_remaining < 0:
         time_remaining = 0
@@ -140,7 +133,42 @@ def dashboard_data():
         "current_car_count": current_car_count,
         "arduino_connected": arduino_connected
     })
-    
+
+@app.route('/upload', methods=['POST'])
+def upload_image():
+    """Recebe imagens para detecção de carros."""
+    if 'image/jpeg' in request.content_type:
+        image_data = np.frombuffer(request.data, np.uint8)
+        img = cv2.imdecode(image_data, cv2.IMREAD_COLOR)
+
+        car_count = detect_cars(img)
+        duration_msg = determine_red_duration(car_count)
+
+        send_to_arduino(duration_msg)
+        return duration_msg, 200
+
+    return "Invalid content type", 400
+
+def determine_red_duration(car_count):
+    """Define a duração do sinal vermelho com base nos carros detectados."""
+    if car_count == 3:
+        return "5 seconds red"
+    elif 4 <= car_count <= 9:
+        return "12 seconds red"
+    elif car_count > 9:
+        return "20 seconds red"
+    return "No cars detected"
+
+def send_to_arduino(message):
+    """Envia uma mensagem ao Arduino via HTTP."""
+    arduino_url = "http://192.168.220.81"  # Substitua pelo URL correto do Arduino
+    try:
+        response = requests.post(arduino_url, json={"message": message})
+        print("Message sent to Arduino:", message)
+        print("Response:", response.text)
+    except Exception as e:
+        print("Error sending message to Arduino:", e)
+
 @app.route('/')
 def dashboard():
     return render_template_string("""
@@ -257,43 +285,7 @@ def dashboard():
     </body>
     </html>
     """)
-
-
-
-
-def determine_red_duration(car_count):
-    if car_count == 3:
-        return "5 seconds red"
-    elif 4 <= car_count <= 9:
-        return "12 seconds red"
-    elif car_count > 9:
-        return "20 seconds red"
-    return "No cars detected"
-
-def send_to_arduino(message):
-    arduino_url = "http://192.168.220.81"  # Replace with the correct Arduino URL
-    try:
-        response = requests.post(arduino_url, json={"message": message})
-        print("Message sent to Arduino:", message)
-        print("Response:", response.text)
-    except Exception as e:
-        print("Error sending message to Arduino:", e)
-
-@app.route('/upload', methods=['POST'])
-def upload_image():
-    if 'image/jpeg' in request.content_type:
-        image_data = np.frombuffer(request.data, np.uint8)
-        img = cv2.imdecode(image_data, cv2.IMREAD_COLOR)
-
-        car_count = detect_cars(img)
-        
-        duration_msg = determine_red_duration(car_count)
-        
-        send_to_arduino(duration_msg)
-
-        return duration_msg, 200
-
-    return "Invalid content type", 400
+ 
 
 if __name__ == "__main__":
     try:
